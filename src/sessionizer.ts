@@ -1,6 +1,7 @@
 import WebSocket, { WebSocketServer } from "ws"
 import { db } from "./db"
 import * as util from "node:util";
+import {generateGUID} from "./utils";
 
 const SESSIONIZER_PORT = 8080
 const IPS = db.map(r => r.ip)
@@ -25,14 +26,6 @@ export type Message = {
 }
 
 const setTimeoutP = util.promisify(setTimeout)
-
-function generateGUID(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
-    const random = Math.random() * 16 | 0; // Generate a random hex digit
-    const value = char === "x" ? random : (random & 0x3 | 0x8); // Set specific bits for UUID v4
-    return value.toString(16);
-  })
-}
 
 function sendSessionOpenedMsg(ip: string, guid: string = generateGUID()): string {
   const sessionOpened: Message = {

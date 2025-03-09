@@ -2,6 +2,7 @@ import express, { Request, Response } from "express"
 import {db} from "./db"
 import {DeanonymizedRecord} from "./datagen/types"
 import util from "node:util";
+import {generateGUID} from "./utils";
 
 export const DEANON_END_POINT = "/deanonymize"
 export const DEANON_WH_END_POINT = "/deanonymize2"
@@ -39,7 +40,8 @@ app.post(DEANON_END_POINT, (req: Request, res: Response) => {
 
 app.post(DEANON_WH_END_POINT, async (req: Request, res: Response) => {
   const {ip, wh} = req.body as {ip: string, wh: string}
-  res.status(200).end()
+  const guid = generateGUID()
+  res.status(200).json({guid})
 
   await setTimeoutP(Math.random() * 2000)
 
@@ -52,7 +54,7 @@ app.post(DEANON_WH_END_POINT, async (req: Request, res: Response) => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ip, data: {}})
+        body: JSON.stringify({guid, ip, data: {}})
       })
     } else {
       console.log(`[WH] deanonymized ${ip} to company ${result.data.company?.guid}, contact ${result.data.contact?.guid}`)
@@ -61,7 +63,7 @@ app.post(DEANON_WH_END_POINT, async (req: Request, res: Response) => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(result)
+        body: JSON.stringify({guid, ...result})
       })
     }
   } catch (e) {
