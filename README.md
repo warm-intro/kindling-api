@@ -30,7 +30,7 @@ Received: {"eventType":"session-closed","ip":"373c:e94d:2ba:cc86:6113:68f8:282d:
 ```
 The events emitted by the sessionizer can be described by the types:
 ```typescript
-type SessionizerEventType = "session-opened" | "session-closed"
+type SessionizerEventType = "session-opened" | "session-closed" | "keep-alive"
 
 type SessionizerMessage = {
   eventType: SessionizerEventType

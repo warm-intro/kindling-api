@@ -14,9 +14,11 @@ const IPS_WITH_NO_MAPPINGS = [
 ]
 
 const clients: Set<WebSocket> = new Set()
-const activeSessions = new Set<string>()
 
-export type EventType = "session-opened" | "session-closed"
+const activeSessions = new Set<string>()
+const ipToGuidMapping = new Map<string, string>()
+
+export type EventType = "session-opened" | "session-closed" | "keep-alive"
 
 export type Message = {
   eventType: EventType
@@ -26,22 +28,6 @@ export type Message = {
 }
 
 const setTimeoutP = util.promisify(setTimeout)
-
-function sendSessionOpenedMsg(ip: string, guid: string = generateGUID()): string {
-  const sessionOpened: Message = {
-    eventType: "session-opened",
-    ip,
-    guid,
-    timestamp: new Date().toISOString()
-  }
-  const jsonString = JSON.stringify(sessionOpened)
-  clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(jsonString)
-    }
-  })
-  return guid
-}
 
 function getInActiveIP(): string {
   let ip = ""
@@ -60,37 +46,51 @@ async function simulateSessionTime(): Promise<void> {
 async function sessionOpenCloseNormal(ip: string = getInActiveIP()): Promise<void> {
   activeSessions.add(ip)
   const guid = sendSessionOpenedMsg(ip)
+  ipToGuidMapping.set(ip, guid)
+
   await simulateSessionTime()
   sendSessionClosedMsg(guid, ip)
+
   activeSessions.delete(ip)
+  ipToGuidMapping.delete(ip)
 }
 
 async function sessionOpenOpenClosePathology(): Promise<void> {
   const ip = getInActiveIP()
   activeSessions.add(ip)
   const guid = sendSessionOpenedMsg(ip)
+  ipToGuidMapping.set(ip, guid)
+
   sendSessionOpenedMsg(ip, guid)
   await simulateSessionTime()
   sendSessionClosedMsg(guid, ip)
+
   activeSessions.delete(ip)
+  ipToGuidMapping.delete(ip)
 }
 
 async function sessionOpenCloseClosePathology(): Promise<void> {
   const ip = getInActiveIP()
   activeSessions.add(ip)
   const guid = sendSessionOpenedMsg(ip)
+  ipToGuidMapping.set(ip, guid)
+
   await simulateSessionTime()
   sendSessionClosedMsg(guid, ip)
   sendSessionClosedMsg(guid, ip)
+
   activeSessions.delete(ip)
+  ipToGuidMapping.delete(ip)
 }
 
 async function sessionOpenNoClosePathology(): Promise<void> {
   const ip = getInActiveIP()
   activeSessions.add(ip)
   sendSessionOpenedMsg(ip)
-  await setTimeoutP(3 * 60 * 1000) // make the session inactive after 3 minutes
+  await setTimeoutP(5 * 60 * 1000) // make the session inactive after 5 minutes
+
   activeSessions.delete(ip)
+  ipToGuidMapping.delete(ip)
 }
 
 async function sessionNoOpenOnlyClosePathology(): Promise<void> {
@@ -107,20 +107,50 @@ async function sessionNoIpMappingPathology(): Promise<void> {
   sessionOpenCloseNormal(ip)
 }
 
+function killEmAll(): void {
+  for (const client of clients) {
+    console.log(`Killing connection`)
+    client.close()
+  }
+}
+
+function sendKeepAlives(): void {
+  ipToGuidMapping.forEach((guid, ip) => {
+    // send some keep-alives, but not to all
+    if (Math.random() < 0.3) {
+      sendSessionKeepAlive(guid, ip)
+    }
+  })
+}
+
+
+
 async function nextTick(): Promise<void> {
+  try {
+    sendKeepAlives()
+  } catch (e) {
+    console.error(`error sending keep alives`, e)
+  }
+
   const rand = Math.random()
-  if (rand <= 0.5) {
-    sessionOpenCloseNormal()
-  } else if (rand <= 0.6) {
-    sessionOpenOpenClosePathology()
-  } else if (rand <= 0.7) {
-    sessionOpenCloseClosePathology()
-  } else if (rand <= 0.8) {
-    sessionOpenNoClosePathology()
-  } else if (rand <= 0.9) {
-    sessionNoOpenOnlyClosePathology()
-  } else {
-    sessionNoIpMappingPathology()
+  try {
+    if (rand <= 0.4) {
+      sessionOpenCloseNormal()
+    } else if (rand <= 0.5) {
+      sessionOpenOpenClosePathology()
+    } else if (rand <= 0.6) {
+      sessionOpenCloseClosePathology()
+    } else if (rand <= 0.7) {
+      sessionOpenNoClosePathology()
+    } else if (rand <= 0.8) {
+      sessionNoOpenOnlyClosePathology()
+    } else if (rand <= 0.9) {
+      sessionNoIpMappingPathology()
+    } else {
+      killEmAll()
+    }
+  } catch (e) {
+    console.error(`error performing next tick`, e)
   }
 
   // new visitors arrive between 0-10 seconds
@@ -128,6 +158,37 @@ async function nextTick(): Promise<void> {
   await setTimeoutP(nextVisitorInterval)
 
   nextTick()
+}
+
+function sendSessionOpenedMsg(ip: string, guid: string = generateGUID()): string {
+  const sessionOpened: Message = {
+    eventType: "session-opened",
+    ip,
+    guid,
+    timestamp: new Date().toISOString()
+  }
+  const jsonString = JSON.stringify(sessionOpened)
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(jsonString)
+    }
+  })
+  return guid
+}
+
+function sendSessionKeepAlive(guid: string, ip: string): void {
+  const sessionClosed: Message = {
+    eventType: "keep-alive",
+    ip,
+    guid,
+    timestamp: new Date().toISOString()
+  }
+  const jsonString = JSON.stringify(sessionClosed)
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(jsonString)
+    }
+  })
 }
 
 function sendSessionClosedMsg(guid: string, ip: string): void {
