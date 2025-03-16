@@ -1073,7 +1073,6 @@ export const db: DeanonymizedRecord[] = [
             "+1-202-473-3362"
           ],
           "emailAddresses": [
-            "tyrone@medbio.uk",
             "tyronejackson@yahoo.com",
             "tyrone@aol.com"
           ]
