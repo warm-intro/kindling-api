@@ -38,8 +38,8 @@ function getInActiveIP(): string {
 }
 
 async function simulateSessionTime(): Promise<void> {
-  // session duration: 0-30 seconds
-  const sessionDuration = Math.floor(Math.random() * 30 * 1000)
+  // session duration: 0-2 minutes
+  const sessionDuration = Math.floor(Math.random() * 2 * 60 * 1000)
   await setTimeoutP(sessionDuration)
 }
 
